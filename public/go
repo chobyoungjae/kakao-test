@@ -1,0 +1,29 @@
+<!-- go.html -->
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>문서로 이동 중...</title>
+  <script>
+    window.onload = function () {
+      const params = new URLSearchParams(window.location.search);
+      const doc = params.get('doc');
+
+      const redirectMap = {
+        발주서1: "https://docs.google.com/spreadsheets/d/1FAYigya47GJWfTm4yysQSY9WCTDV8b0Du_rYnAtYug0/edit",
+        발주서2: "https://docs.google.com/spreadsheets/d/abc12345678/edit"
+        // 필요한 문서 계속 추가 가능
+      };
+
+      if (redirectMap[doc]) {
+        window.location.href = redirectMap[doc];
+      } else {
+        document.body.innerHTML = "<h2>❌ 문서를 찾을 수 없습니다.</h2>";
+      }
+    };
+  </script>
+</head>
+<body>
+  <p>📄 문서로 이동 중입니다...</p>
+</body>
+</html>
