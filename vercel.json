@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/go.html",
+      "destination": "/go.html"
+    }
+  ]
+}
