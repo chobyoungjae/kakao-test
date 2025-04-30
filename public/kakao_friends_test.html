@@ -1,49 +1,56 @@
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 <head>
   <meta charset="UTF-8" />
   <title>카카오 친구 목록 테스트</title>
+  <style>
+    body { font-family: sans-serif; padding: 2rem; }
+    button { margin: .5rem; padding: .5rem 1rem; font-size: 1rem; }
+    pre    { background: #f0f0f0; padding: 1rem; white-space: pre-wrap; }
+  </style>
 </head>
 <body>
   <h1>📋 카카오 친구 목록 불러오기</h1>
   <button id="getTokenBtn">1️⃣ 액세스 토큰 발급</button>
   <button id="getFriendsBtn" disabled>2️⃣ 친구 목록 조회</button>
   <pre id="output"></pre>
-  <!-- 숨겨진 iframe: 폼 전송 결과를 담을 공간 -->
+  <!-- 폼 전송 결과를 받기 위한 숨겨진 iframe -->
   <iframe name="hidden_iframe" style="display:none;"></iframe>
 
   <script>
-    const client_id   = "b753d319ccd4300a4c957d7d4c6c9b96";
-    const redirect_uri= "https://kakao-test-ebon.vercel.app/kakao_friends_test.html";
-    // 여기에 배포한 Apps Script Exec URL
-    const SCRIPT_URL  = "https://script.google.com/macros/s/AKfycbzUhoZNpMcu8Lo_M1IgR9eMFbbwPlQNc4RYZ7x1vbMvaVgoRTvbaZWGiYMbknPkhQoX/exec";
+    // 1) REST API Key
+    const client_id    = "b753d319ccd4300a4c957d7d4c6c9b96";
+    // 2) Redirect URI (카카오 콘솔에 등록된 URL)
+    const redirect_uri = "https://kakao-test-ebon.vercel.app/kakao_friends_test.html";
+    // 3) Apps Script Web App (doPost) Exec URL
+    const SCRIPT_URL   = "https://script.google.com/macros/s/AKfycbzUhoZNpMcu8Lo_M1IgR9eMFbbwPlQNc4RYZ7x1vbMvaVgoRTvbaZWGiYMbknPkhQoX/exec";
 
-    // 친구별로 ?state=이름 파라미터를 넘긴다고 가정
+    // URL 파라미터에서 code, state 꺼내기
     const params = new URLSearchParams(window.location.search);
-    const code  = params.get("code");
-    const state = params.get("state") || prompt("state 파라미터가 없습니다.\n본인이 누구신가요?");
+    const code   = params.get("code");
+    const state  = params.get("state") || prompt("state 파라미터가 없습니다.\n본인이 누구신가요?");
 
     let access_token = "";
 
     document.getElementById("getTokenBtn").onclick = () => {
       if (!code) {
-        // 1) 카카오 로그인 화면으로 리다이렉트 (state 포함)
+        // 카카오 로그인/동의 페이지로 리다이렉트
         window.location.href =
-          `https://kauth.kakao.com/oauth/authorize`
-          + `?client_id=${client_id}`
-          + `&redirect_uri=${encodeURIComponent(redirect_uri)}`
-          + `&response_type=code`
-          + `&scope=talk_message,friends`
-          + `&state=${encodeURIComponent(state)}`;
+          `https://kauth.kakao.com/oauth/authorize` +
+          `?client_id=${client_id}` +
+          `&redirect_uri=${encodeURIComponent(redirect_uri)}` +
+          `&response_type=code` +
+          `&scope=talk_message,friends` +
+          `&state=${encodeURIComponent(state)}`;
         return;
       }
 
-      // 2) 토큰 교환
+      // 토큰 교환 요청
       fetch("https://kauth.kakao.com/oauth/token", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({
-          grant_type:    "authorization_code",
+          grant_type:   "authorization_code",
           client_id,
           redirect_uri,
           code
@@ -54,23 +61,26 @@
         if (data.error) throw new Error(data.error_description);
         access_token = data.access_token;
         document.getElementById("output").textContent =
-          "✅ 액세스 토큰 발급 완료\n" + JSON.stringify(data, null,2);
+          "✅ 액세스 토큰 발급 완료\n" + JSON.stringify(data, null, 2);
 
-        // 3) 폼으로 Apps Script 웹앱에 POST (CORS 우회)
+        // CORS 우회: hidden iframe을 이용한 폼 POST
         const form = document.createElement("form");
         form.method = "POST";
         form.action = SCRIPT_URL;
         form.target = "hidden_iframe";
-        [ ["state", state],
-          ["access_token", data.access_token],
+
+        [
+          ["state",         state],
+          ["access_token",  data.access_token],
           ["refresh_token", data.refresh_token]
-        ].forEach(([k,v]) => {
-          const inp = document.createElement("input");
-          inp.type  = "hidden";
-          inp.name  = k;
-          inp.value = v;
-          form.appendChild(inp);
+        ].forEach(([key, val]) => {
+          const input = document.createElement("input");
+          input.type  = "hidden";
+          input.name  = key;
+          input.value = val;
+          form.appendChild(input);
         });
+
         document.body.appendChild(form);
         form.submit();
 
@@ -83,7 +93,10 @@
     };
 
     document.getElementById("getFriendsBtn").onclick = () => {
-      if (!access_token) return alert("먼저 토큰을 발급받아야 합니다.");
+      if (!access_token) {
+        alert("먼저 액세스 토큰을 발급받아야 합니다.");
+        return;
+      }
       fetch("https://kapi.kakao.com/v1/api/talk/friends", {
         method: "GET",
         headers: { Authorization: `Bearer ${access_token}` }
@@ -91,7 +104,7 @@
       .then(res => res.json())
       .then(data => {
         document.getElementById("output").textContent =
-          "👥 친구 목록:\n" + JSON.stringify(data, null,2);
+          "👥 친구 목록:\n" + JSON.stringify(data, null, 2);
       })
       .catch(err => {
         document.getElementById("output").textContent =
