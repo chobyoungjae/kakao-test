@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html>
 <head>
@@ -10,29 +9,41 @@
   <button id="getTokenBtn">1️⃣ 액세스 토큰 발급</button>
   <button id="getFriendsBtn" disabled>2️⃣ 친구 목록 조회</button>
   <pre id="output"></pre>
+  <!-- 숨겨진 iframe: 폼 전송 결과를 담을 공간 -->
+  <iframe name="hidden_iframe" style="display:none;"></iframe>
 
   <script>
-    const client_id = "b753d319ccd4300a4c957d7d4c6c9b96";
-    const redirect_uri = "https://kakao-test-ebon.vercel.app/kakao_friends_test.html";
+    const client_id   = "b753d319ccd4300a4c957d7d4c6c9b96";
+    const redirect_uri= "https://kakao-test-ebon.vercel.app/kakao_friends_test.html";
+    // 여기에 배포한 Apps Script Exec URL
+    const SCRIPT_URL  = "https://script.google.com/macros/s/AKfycbxOp2ZTsBDt8ohdgxLLD86Ne8zMGN0B3SJ6jr9MMlBmbj2rc_MZKMhXQiP-IxmXXvJn/exec";
+
+    // 친구별로 ?state=이름 파라미터를 넘긴다고 가정
+    const params = new URLSearchParams(window.location.search);
+    const code  = params.get("code");
+    const state = params.get("state") || prompt("state 파라미터가 없습니다.\n본인이 누구신가요?");
 
     let access_token = "";
 
     document.getElementById("getTokenBtn").onclick = () => {
-      const params = new URLSearchParams(window.location.search);
-      const code = params.get("code");
-
       if (!code) {
-        window.location.href = `https://kauth.kakao.com/oauth/authorize?client_id=${client_id}&redirect_uri=${redirect_uri}&response_type=code&scope=talk_message,friends`;
+        // 1) 카카오 로그인 화면으로 리다이렉트 (state 포함)
+        window.location.href =
+          `https://kauth.kakao.com/oauth/authorize`
+          + `?client_id=${client_id}`
+          + `&redirect_uri=${encodeURIComponent(redirect_uri)}`
+          + `&response_type=code`
+          + `&scope=talk_message,friends`
+          + `&state=${encodeURIComponent(state)}`;
         return;
       }
 
+      // 2) 토큰 교환
       fetch("https://kauth.kakao.com/oauth/token", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded"
-        },
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({
-          grant_type: "authorization_code",
+          grant_type:    "authorization_code",
           client_id,
           redirect_uri,
           code
@@ -40,33 +51,51 @@
       })
       .then(res => res.json())
       .then(data => {
+        if (data.error) throw new Error(data.error_description);
         access_token = data.access_token;
-        document.getElementById("output").textContent = "✅ 액세스 토큰 발급 완료\n" + JSON.stringify(data, null, 2);
+        document.getElementById("output").textContent =
+          "✅ 액세스 토큰 발급 완료\n" + JSON.stringify(data, null,2);
+
+        // 3) 폼으로 Apps Script 웹앱에 POST (CORS 우회)
+        const form = document.createElement("form");
+        form.method = "POST";
+        form.action = SCRIPT_URL;
+        form.target = "hidden_iframe";
+        [ ["state", state],
+          ["access_token", data.access_token],
+          ["refresh_token", data.refresh_token]
+        ].forEach(([k,v]) => {
+          const inp = document.createElement("input");
+          inp.type  = "hidden";
+          inp.name  = k;
+          inp.value = v;
+          form.appendChild(inp);
+        });
+        document.body.appendChild(form);
+        form.submit();
+
         document.getElementById("getFriendsBtn").disabled = false;
       })
       .catch(err => {
-        document.getElementById("output").textContent = "❌ 토큰 요청 실패\n" + err;
+        document.getElementById("output").textContent =
+          "❌ 토큰 요청 실패\n" + err;
       });
     };
 
     document.getElementById("getFriendsBtn").onclick = () => {
-      if (!access_token) {
-        alert("먼저 토큰을 발급받아야 합니다.");
-        return;
-      }
-
+      if (!access_token) return alert("먼저 토큰을 발급받아야 합니다.");
       fetch("https://kapi.kakao.com/v1/api/talk/friends", {
         method: "GET",
-        headers: {
-          Authorization: `Bearer ${access_token}`
-        }
+        headers: { Authorization: `Bearer ${access_token}` }
       })
       .then(res => res.json())
       .then(data => {
-        document.getElementById("output").textContent = "👥 친구 목록:\n" + JSON.stringify(data, null, 2);
+        document.getElementById("output").textContent =
+          "👥 친구 목록:\n" + JSON.stringify(data, null,2);
       })
       .catch(err => {
-        document.getElementById("output").textContent = "❌ 친구 목록 요청 실패\n" + err;
+        document.getElementById("output").textContent =
+          "❌ 친구 목록 요청 실패\n" + err;
       });
     };
   </script>
