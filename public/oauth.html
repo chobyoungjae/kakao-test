@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>친구별 카카오 인증</title>
+  <style>
+    body { font-family: sans-serif; padding: 2rem; }
+    a.button {
+      display: block;
+      background: #fee500;
+      color: #000;
+      padding: 0.5rem 1rem;
+      border-radius: 4px;
+      margin-bottom: 0.5rem;
+      text-decoration: none;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <h1>친구별 카카오 인증</h1>
+  <div id="app">로딩 중…</div>
+
+  <script>
+    // 1) 자신의 Kakao REST API Key
+    const CLIENT_ID    = 'b753d319ccd4300a4c957d7d4c6c9b96';
+    // 2) 이 파일이 배포된 정확한 URL
+    const REDIRECT_URI = 'https://kakao-test-ebon.vercel.app/oauth.html';
+    // 3) Apps Script 웹앱(doPost) exec URL
+    const SCRIPT_URL   = 'https://script.google.com/macros/s/AKfycbwwIYgY4-p8ncHJXe9p6J29THMV5PodnHd3m8DU05CqgmmbgI4YUwvE86jroCXc5g_y/exec';
+
+    // 4) 인증할 친구 목록
+    const FRIENDS = [
+      { name: '조병재' },
+      { name: '강정호' },
+      { name: '김가율' },
+      { name: '오수진' },
+      { name: '윤소연' },
+      { name: '이재훈' },
+      { name: '이지혜' },
+      { name: '임용헌' },
+      { name: '허정은' }
+    ];
+
+    const params = new URLSearchParams(window.location.search);
+    const code   = params.get('code');
+    const state  = params.get('state');
+
+    async function exchangeToken(authCode) {
+      const resp = await fetch('https://kauth.kakao.com/oauth/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type:   'authorization_code',
+          client_id:    CLIENT_ID,
+          redirect_uri: REDIRECT_URI,
+          code:         authCode
+        })
+      });
+      return resp.json();
+    }
+
+    (async () => {
+      const app = document.getElementById('app');
+
+      if (!code) {
+        // 인증 전: 친구별 버튼 렌더링
+        app.innerHTML = FRIENDS.map(f => {
+          const url = [
+            'https://kauth.kakao.com/oauth/authorize',
+            `?client_id=${CLIENT_ID}`,
+            `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`,
+            '&response_type=code',
+            `&state=${encodeURIComponent(f.name)}`
+          ].join('');
+          return `<a class="button" href="${url}">${f.name} 인증하기</a>`;
+        }).join('');
+      } else {
+        // 인증 후: 토큰 교환 & Apps Script 전송
+        app.innerText = '토큰 교환 중… 잠시만 기다려 주세요.';
+        try {
+          const data = await exchangeToken(code);
+          await fetch(SCRIPT_URL, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({
+              state:         state,
+              access_token:  data.access_token,
+              refresh_token: data.refresh_token
+            })
+          });
+          app.innerText = '✅ 인증 완료! 창을 닫으셔도 됩니다.';
+        } catch (e) {
+          app.innerText = '❌ 오류 발생: ' + e.message;
+        }
+      }
+    })();
+  </script>
+</body>
+</html>
