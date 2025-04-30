@@ -1,40 +1,91 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8"/>
   <title>카카오 친구 목록 테스트</title>
-  <style>/*...*/</style>
+  <style>
+    body { font-family: sans-serif; padding: 2rem; }
+    select, button { margin: .5rem; padding: .5rem 1rem; font-size: 1rem; }
+    pre { background: #f0f0f0; padding: 1rem; white-space: pre-wrap; }
+  </style>
 </head>
 <body>
   <h1>📋 카카오 친구 목록 불러오기</h1>
-  <button id="getTokenBtn">1️⃣ 액세스 토큰 발급</button>
+
+  <!-- 1) 친구 선택 드롭다운 -->
+  <label for="friendSelect">친구 선택: </label>
+  <select id="friendSelect">
+    <option value="" disabled selected>— 선택하세요 —</option>
+    <option value="조병재">조병재</option>
+    <option value="강정호">강정호</option>
+    <option value="김가율">김가율</option>
+    <option value="오수진">오수진</option>
+    <option value="윤소연">윤소연</option>
+    <option value="이재훈">이재훈</option>
+    <option value="이지혜">이지혜</option>
+    <option value="임용헌">임용헌</option>
+    <option value="허정은">허정은</option>
+  </select>
+
+  <!-- 2) 로그인 & 친구 조회 버튼 -->
+  <button id="getTokenBtn" disabled>1️⃣ 액세스 토큰 발급</button>
   <button id="getFriendsBtn" disabled>2️⃣ 친구 목록 조회</button>
+
   <pre id="output"></pre>
   <iframe name="hidden_iframe" style="display:none;"></iframe>
 
   <script>
-    const client_id    = "b753d319ccd4300a4c957d7d4c6c9b96";
-    const redirect_uri = "https://kakao-test-ebon.vercel.app/kakao_friends_test.html";
-    const SCRIPT_URL   = "https://script.google.com/macros/s/AKfycbwJYlEGdJc-6wtPloIAxfy9A0aEwJqauxjGgfipYszQyT2X2OaspVYyrJorFChPeVtn/exec";
+    const client_id     = "b753d319ccd4300a4c957d7d4c6c9b96";
+    const redirect_uri  = "https://kakao-test-ebon.vercel.app/kakao_friends_test.html";
+    const SCRIPT_URL    = "https://script.google.com/macros/s/AKfycbwJYlEGdJc-6wtPloIAxfy9A0aEwJqauxjGgfipYszQyT2X2OaspVYyrJorFChPeVtn/exec";
 
-    const params = new URLSearchParams(location.search);
+    // 드롭다운에서 선택된 친구 이름을 저장
+    let state = "";
+    document.getElementById("friendSelect").onchange = e => {
+      state = e.target.value;
+      document.getElementById("getTokenBtn").disabled = !state;
+    };
+
+    // query string 에서 code 파라미터 가져오기
+    const params = new URLSearchParams(window.location.search);
     const code   = params.get("code");
-    const state  = params.get("state") || prompt("본인 이름을 입력하세요");
 
     let access_token = "";
 
+    // 1️⃣ 액세스 토큰 발급
     document.getElementById("getTokenBtn").onclick = () => {
       if (!code) {
-        location.href =
-          `https://kauth.kakao.com/oauth/authorize`
-          + `?client_id=${client_id}`
-          + `&redirect_uri=${encodeURIComponent(redirect_uri)}`
-          + `&response_type=code`
-          + `&scope=talk_message,friends`
-          + `&state=${encodeURIComponent(state)}`;
-        return;
+        window.location.href =
+          `https://kauth.kakao.com/oauth/authorize` +
+          `?client_id=${client_id}` +
+          `&redirect_uri=${encodeURIComponent(redirect_uri)}` +
+          `&response_type=code` +
+          `&scope=talk_message,friends` +
+          `&state=${encodeURIComponent(state)}`;
+      } else {
+        // 이미 code가 있으면 바로 교환
+        issueToken();
       }
-      // 2) 토큰 교환
+    };
+
+    // 2️⃣ 친구 목록 조회
+    document.getElementById("getFriendsBtn").onclick = () => {
+      fetch("https://kapi.kakao.com/v1/api/talk/friends", {
+        headers: { Authorization: `Bearer ${access_token}` }
+      })
+      .then(r => r.json())
+      .then(d => {
+        document.getElementById("output").textContent =
+          "👥 친구 목록:\n" + JSON.stringify(d, null,2);
+      })
+      .catch(e => {
+        document.getElementById("output").textContent =
+          "❌ 친구 목록 요청 실패\n" + e;
+      });
+    };
+
+    // code→token 교환 + 폼 POST
+    function issueToken() {
       fetch("https://kauth.kakao.com/oauth/token", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -43,20 +94,20 @@
           client_id, redirect_uri, code
         })
       })
-      .then(r=>r.json())
+      .then(r => r.json())
       .then(data => {
         if (data.error) throw new Error(data.error_description);
         access_token = data.access_token;
         document.getElementById("output").textContent =
           "✅ 토큰 발급 완료\n" + JSON.stringify(data, null,2);
 
-        // 3) 폼으로 서버에 POST
+        // 폼 POST로 doPost 호출
         const form = document.createElement("form");
         form.method = "POST";
         form.action = SCRIPT_URL;
         form.target = "hidden_iframe";
         [["state",state],["access_token",data.access_token],["refresh_token",data.refresh_token]]
-          .forEach(([k,v])=>{
+          .forEach(([k,v]) => {
             const inp = document.createElement("input");
             inp.type  = "hidden"; inp.name = k; inp.value = v;
             form.appendChild(inp);
@@ -67,21 +118,17 @@
         document.getElementById("getFriendsBtn").disabled = false;
       })
       .catch(err => {
-        document.getElementById("output").textContent = "❌ 토큰 교환 실패\n" + err;
-      });
-    };
-
-    document.getElementById("getFriendsBtn").onclick = () => {
-      if (!access_token) return alert("먼저 토큰 발급");
-      fetch("https://kapi.kakao.com/v1/api/talk/friends", {
-        headers: { Authorization: `Bearer ${access_token}` }
-      })
-      .then(r=>r.json())
-      .then(d => {
         document.getElementById("output").textContent =
-          "👥 친구 목록:\n" + JSON.stringify(d, null,2);
+          "❌ 토큰 교환 실패\n" + err;
       });
-    };
+    }
+
+    // 페이지 로드 시, 로그인 콜백 돌아온 경우 자동 실행
+    if (code && (new URLSearchParams(window.location.search).get("state"))) {
+      state = params.get("state");
+      document.getElementById("getTokenBtn").disabled = false;
+      issueToken();
+    }
   </script>
 </body>
 </html>
