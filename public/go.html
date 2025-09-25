@@ -71,55 +71,59 @@
       // 미쓰리서명앱만 카카오톡 인앱 브라우저에서 외부 브라우저로 열기
       if (navigator.userAgent.includes('KAKAOTALK') && doc === '미쓰리서명앱' && params.get('mobile') === '1') {
         const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
-        const chromeUrl = isIOS ? `googlechrome://${target.replace('https://', '')}` : target;
 
-        document.body.innerHTML = `
-          <div style="text-align: center; padding: 50px 20px; font-family: Arial, sans-serif;">
-            <h2>🌐 외부 브라우저에서 열기</h2>
-            <p>더 나은 사용 환경을 위해 외부 브라우저에서 열어주세요</p>
-            <br>
-            ${isIOS ? `
-              <a href="${chromeUrl}" style="
-                background: #4285f4;
-                color: white;
-                padding: 12px 24px;
-                text-decoration: none;
-                border-radius: 5px;
-                display: inline-block;
-                font-weight: bold;
-                margin: 5px;
-              ">Chrome에서 열기</a>
-              <br>
-              <a href="${target}" style="
-                background: #007bff;
-                color: white;
-                padding: 12px 24px;
-                text-decoration: none;
-                border-radius: 5px;
-                display: inline-block;
-                font-weight: bold;
-                margin: 5px;
-              ">Safari에서 열기</a>
-            ` : `
-              <a href="${target}" style="
-                background: #007bff;
-                color: white;
-                padding: 12px 24px;
-                text-decoration: none;
-                border-radius: 5px;
-                display: inline-block;
-                font-weight: bold;
-              ">크롬에서 열기</a>
-            `}
-            <br><br>
-            <small style="color: #666;">
-              ${isIOS ?
-                'Chrome이 설치되어 있지 않다면 Safari에서 열기를 선택하거나<br>우측 상단 공유 버튼 > Chrome에서 열기를 선택하세요' :
-                '우측 상단 ⋯ 메뉴 > 다른 앱에서 열기 또는 외부 브라우저에서 열기를 선택하세요'
-              }
-            </small>
-          </div>
-        `;
+        if (isIOS) {
+          // iOS: Chrome으로 자동 시도 후 실패하면 안내
+          const chromeUrl = `googlechrome://${target.replace('https://', '')}`;
+
+          // Chrome 자동 열기 시도
+          window.location.href = chromeUrl;
+
+          // 3초 후에도 페이지에 있으면 수동 안내 표시
+          setTimeout(() => {
+            document.body.innerHTML = `
+              <div style="text-align: center; padding: 50px 20px; font-family: Arial, sans-serif;">
+                <h2>🔗 Chrome에서 열기</h2>
+                <p>Chrome이 설치되어 있지 않거나 자동으로 열리지 않았습니다</p>
+                <br>
+                <a href="${chromeUrl}" style="
+                  background: #4285f4;
+                  color: white;
+                  padding: 15px 30px;
+                  text-decoration: none;
+                  border-radius: 8px;
+                  display: inline-block;
+                  font-weight: bold;
+                  font-size: 16px;
+                ">다시 Chrome에서 열기</a>
+                <br><br>
+                <a href="${target}" style="
+                  background: #007bff;
+                  color: white;
+                  padding: 15px 30px;
+                  text-decoration: none;
+                  border-radius: 8px;
+                  display: inline-block;
+                  font-weight: bold;
+                  font-size: 16px;
+                  margin-top: 10px;
+                ">Safari에서 열기</a>
+              </div>
+            `;
+          }, 3000);
+
+        } else {
+          // 안드로이드: Chrome으로 자동 시도 후 실패하면 기본 브라우저
+          const chromeIntent = `intent://${target.replace('https://', '')}#Intent;scheme=https;package=com.android.chrome;end`;
+
+          // Chrome 자동 열기 시도
+          window.location.href = chromeIntent;
+
+          // 1초 후에도 페이지에 있으면 기본 브라우저로 폴백
+          setTimeout(() => {
+            window.open(target, '_blank');
+          }, 1000);
+        }
         return;
       }
 
